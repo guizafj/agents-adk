@@ -1,0 +1,32 @@
+services:
+
+  adk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: adk
+    container_name: adk
+    network_mode: host
+    volumes:
+      - /app/.venv
+      - .:/app
+    command: uv run adk web --host 0.0.0.0 --port 8000
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - 11434:11434
+    volumes:
+      - ./.volumes/ollama:/root/.ollama/models
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_URL=http://localhost:11434
+    volumes:
+      - .:/app
+    network_mode: host
+    command: bash -c "source .venv/bin/activate && adk web chat_agent/agent.py --port 8000 --host 0.0.0.0"

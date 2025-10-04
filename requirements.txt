@@ -1,0 +1,4 @@
+google-adk>=1.11.0
+litellm>=1.75.8
+pydantic>=2.11.7
+requests>=2.31.0
