@@ -10,6 +10,7 @@ services:
     volumes:
       - /app/.venv
       - .:/app
+      - ./data/persistence:/app/data/persistence
     command: uv run adk web --host 0.0.0.0 --port 8000
 
   ollama:
