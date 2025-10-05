@@ -72,11 +72,6 @@ rm -f data/persistence/sessions.db*
 docker compose up adk -d
 ```
 
-## 📚 Documentación Completa
-
-Para más información, consulta:
-- `PERSISTENCE_TUTORIAL_COMPLETO.md` - Tutorial completo del sistema de persistencia
-
 ---
 
 ⚠️ **Los archivos `.db-*` son temporales de SQLite y no deben editarse manualmente.**

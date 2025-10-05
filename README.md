@@ -283,31 +283,6 @@ curl -X POST http://localhost:11434/api/generate \
 - [ ] **Multi-modal Support**: Imágenes, audio, video
 - [ ] **Enterprise Features**: SSO, audit logs, compliance
 
-### 💡 Ideas en Exploración
-
-- **Frontend Python**: Evaluación de Reflex vs FastHTML vs Streamlit para UI moderna
-- **Voice Interface**: Integración con speech-to-text
-- **Mobile App**: Cliente móvil para iOS/Android  
-- **Browser Extension**: Plugin para navegadores
-- **IDE Integration**: Extensiones para VSCode, IntelliJ
-- **Workflow Automation**: Zapier/n8n integrations
-
-### 🐍 **Decisión de Stack Frontend**
-
-**¿Por qué Reflex en lugar de React/Vue?**
-
-| Aspecto | Reflex | React/Vue |
-|---------|--------|-----------|
-| **Lenguaje** | 🟢 Python puro | 🔴 JavaScript/TypeScript |
-| **Curva de aprendizaje** | 🟢 Familiar para Python devs | 🔴 Requiere aprender JS ecosystem |
-| **Integración** | 🟢 Nativa con backend Python | 🟡 API REST/GraphQL |
-| **Type Safety** | 🟢 Python typing nativo | 🟡 TypeScript requerido |
-| **Performance** | 🟡 Buena para la mayoría de casos | 🟢 Excelente |
-| **Ecosistema** | 🔴 Pequeño pero creciente | 🟢 Maduro y extenso |
-| **Desarrollo** | 🟢 Un solo language stack | 🔴 Frontend + Backend separados |
-
-**Veredicto**: Para este proyecto, **Reflex** ofrece la mejor relación simplicidad/funcionalidad manteniendo la coherencia del stack Python.
-
 ---
 
 ## 🤝 Contribuciones
