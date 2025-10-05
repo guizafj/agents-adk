@@ -1,7 +1,7 @@
 [project]
 name = "app"
 version = "0.1.0"
-description = "Add your description here"
+description = "Este proyecto demuestra cómo integrar Google ADK (Agent Development Kit) con Ollama para crear aplicaciones conversacionales avanzadas que combinan lo mejor de ambos mundos."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
