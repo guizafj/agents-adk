@@ -23,7 +23,7 @@ Si tienes mockups, diagramas o ejemplos, inclúyelos aquí.
 
 ## 📋 Tareas de Implementación
 - [ ] Tarea 1
-- [ ] Tarea 2  
+- [ ] Tarea 2
 - [ ] Tarea 3
 
 ## 🏷️ Etiquetas

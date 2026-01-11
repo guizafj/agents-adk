@@ -15,13 +15,13 @@
 Este proyecto demuestra cómo integrar **Google ADK** (Agent Development Kit) con **Ollama** para crear aplicaciones conversacionales avanzadas que combinan lo mejor de ambos mundos:
 
 - 🦙 **Ollama nativo**: Máximo rendimiento de GPU para inferencia local
-- 🏗️ **Google ADK containerizado**: Entorno reproducible y escalable  
+- 🏗️ **Google ADK containerizado**: Entorno reproducible y escalable
 - 🔄 **Arquitectura híbrida**: Simplicidad operacional con performance optimizada
 
 ### 🎯 Características Principales
 
 - ✅ **Interfaz Web Completa**: Dashboard web accesible en `http://localhost:8000`
-- ✅ **GPU Acceleration**: Soporte nativo para NVIDIA RTX/GTX 
+- ✅ **GPU Acceleration**: Soporte nativo para NVIDIA RTX/GTX
 - ✅ **Docker Ready**: Despliegue con un solo comando
 - ✅ **LiteLlm Integration**: Conectividad transparente con modelos Ollama
 - ✅ **Environment Management**: Configuración por variables de entorno
@@ -85,7 +85,7 @@ curl http://localhost:8000/   # Google ADK Web
 ### 🌐 Acceso a la Aplicación
 
 - **Web Interface**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs  
+- **API Documentation**: http://localhost:8000/docs
 - **Ollama API**: http://localhost:11434
 
 ---
@@ -101,20 +101,20 @@ graph TB
         G[GPU NVIDIA<br/>RTX/GTX Series]
         O --> G
     end
-    
+
     subgraph "DOCKER CONTAINER"
         A[Google ADK<br/>:8000<br/>🌐 Web Interface]
         L[LiteLlm Client<br/>🔗 Integration Layer]
         A --> L
     end
-    
+
     L -.->|network_mode: host| O
-    
+
     subgraph "USER ACCESS"
         B[Browser<br/>localhost:8000]
         API[API Clients<br/>REST/HTTP]
     end
-    
+
     B --> A
     API --> A
 ```
@@ -321,7 +321,7 @@ Este proyecto está licenciado bajo la **MIT License** - ver el archivo [LICENSE
 ## 📞 Soporte
 
 - **Documentación**: [PROCEDIMIENTO.md](PROCEDIMIENTO.md) para detalles técnicos
-- **Issues**: [GitHub Issues](../../issues) para bugs y features  
+- **Issues**: [GitHub Issues](../../issues) para bugs y features
 - **Wiki**: [GitHub Wiki](../../wiki) para guías adicionales
 - **Discussions**: [GitHub Discussions](../../discussions) para preguntas
 

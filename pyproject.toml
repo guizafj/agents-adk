@@ -9,4 +9,13 @@ dependencies = [
     "litellm>=1.77.4",
     "requests>=2.32.0",
     "python-dotenv>=1.1.1",
+    "urllib3>=2.6.0",
+    "starlette>=0.49.1",
+    "mcp>=1.23.0",
+    "aiohttp>=3.13.3",
+    "filelock>=3.20.1",
+    "authlib>=1.6.6",
+    "pip-audit>=2.10.0",
+    "ruff>=0.14.11",
+    "bandit>=1.9.2",
 ]

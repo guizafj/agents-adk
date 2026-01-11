@@ -1,11 +1,12 @@
 import requests
 
+
 def get_pokemon_info(pokemon_name: str) -> dict:
     """Retrieves information about a specific Pokémon.
-    
+
     Args:
         pokemon_name (str): The name of the Pokémon in lowercase to retrieve information about.
-    
+
     Returns:
         dict: status and result or error msg.
     """

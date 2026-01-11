@@ -7,7 +7,7 @@ Módulos:
 
 Uso rápido:
     from chat_agent.database import AgentPersistence
-    
+
     persistence = AgentPersistence("persistence.db")
     session_id = persistence.start_session(
         session_name="HTB - Nibbles",
@@ -15,6 +15,7 @@ Uso rápido:
         lab_target="10.10.10.75"
     )
 """
+
 from .persistence import SessionManager
 from .agent_wrapper import AgentPersistence
 

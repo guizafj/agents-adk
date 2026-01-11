@@ -124,7 +124,7 @@ CREATE INDEX IF NOT EXISTS idx_user_progress_user ON user_progress(user_id);
 
 -- Vista de sesiones recientes con resumen
 CREATE VIEW IF NOT EXISTS recent_sessions AS
-SELECT 
+SELECT
     s.session_id,
     s.user_id,
     s.session_name,
@@ -143,7 +143,7 @@ ORDER BY s.last_active DESC;
 
 -- Vista de estadísticas de usuario
 CREATE VIEW IF NOT EXISTS user_stats AS
-SELECT 
+SELECT
     user_id,
     COUNT(DISTINCT session_id) as total_sessions,
     COUNT(DISTINCT CASE WHEN lab_environment = 'HTB' THEN session_id END) as htb_sessions,

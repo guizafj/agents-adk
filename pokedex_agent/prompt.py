@@ -1,6 +1,10 @@
-
 def get_prompt():
+    """Permite la creación y modificación rapida de los prompts usados por el modelo.
 
+    Keyword Arguments:
+    argument -- description
+    Return: return_description.
+    """
     v1 = """
     Eres un asistente de IA que puede responder preguntas sobre Pokémon.
     Puedes usar la herramienta get_pokemon_info para obtener información sobre un Pokémon específico.
