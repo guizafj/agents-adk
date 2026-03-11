@@ -1,397 +1,155 @@
+"""Agente principal del Cybersecurity Tutor.
+
+Tutor pedagógico de hacking ético y pentesting profesional.
+No ejecuta herramientas — analiza output, genera comandos explicados
+y guía el razonamiento del estudiante a través del flujo completo.
+
+Cobertura:
+    - Análisis de output: nmap, gobuster, enum4linux, nikto, wpscan, linpeas, hashes
+    - Comandos por fase: recon, web, smb, privesc Linux/Windows, passwords,
+                        pivoting, OSINT, Active Directory completo, reporting, API
+    - Cheatsheets (25+): herramientas base + impacket, mimikatz, msfvenom,
+                        docker-escape, cloud AWS, ligolo, OWASP Top 10, OWASP API
+    - Conceptos (18+): web vulns, AD attacks, técnicas avanzadas
+    - Metodologías: PTES, OWASP WSTG, reporting profesional
+
+Fixes v3:
+    - DatabaseSessionService: historial de conversación persiste en SQLite
+        entre reinicios del agente. Resuelve la pérdida de contexto.
+    - LiteLlm timeouts explícitos: evita que silencios largos de qwen3.5
+        (thinking tokens) rompan la conexión y creen una sesión nueva.
+    - OLLAMA_NUM_CTX propagado como extra_body: garantiza que Ollama
+        use la ventana de contexto correcta sin depender solo de la var de entorno.
+    - thinking=False: suprime los tokens <think> de qwen3.5 en el chat.
+        El modelo sigue razonando internamente; solo se omite el bloque visible.
+"""
+
+import os
+from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
-import os
-from typing import Optional, Dict, Any
-from dotenv import load_dotenv
+from google.adk.sessions import DatabaseSessionService
 
 from .prompt import get_prompt
 from .tools import (
-    nmap_scan,
-    ping_check,
-    gobuster_dir,
-    whois_lookup,
-    dns_lookup,
-    search_exploit,
+    # ── Análisis de output ──────────────────────────────────────────────────
+    analyze_nmap_output,
+    analyze_gobuster_output,
+    analyze_service_version,
+    analyze_enum4linux_output,
+    analyze_nikto_output,
+    analyze_wpscan_output,
+    analyze_linpeas_output,
+    analyze_hash,
+    # ── Comandos por fase — base ─────────────────────────────────────────────
+    generate_pentest_commands,
+    # ── Comandos por fase — extendido ────────────────────────────────────────
+    generate_pentest_commands_extended,
+    # ── Cheatsheets — base ───────────────────────────────────────────────────
     get_cheatsheet,
+    # ── Cheatsheets — extendido ──────────────────────────────────────────────
+    get_cheatsheet_extended,
+    # ── Conceptos — base ─────────────────────────────────────────────────────
+    explain_concept,
+    # ── Conceptos — extendido ────────────────────────────────────────────────
+    explain_concept_extended,
 )
-from .database import AgentPersistence
 
-# Cargar variables del archivo .env
+# ============================================================================
+# CONFIGURACIÓN
+# ============================================================================
+
 load_dotenv()
 
-# Configurar URL de Ollama (priorizar OLLAMA_API_BASE del .env)
-ollama_url = os.getenv("OLLAMA_API_BASE") or os.getenv(
+OLLAMA_URL = os.getenv("OLLAMA_API_BASE") or os.getenv(
     "OLLAMA_BASE_URL", "http://localhost:11434"
+)
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "ollama_chat/qwen3.5:latest")
+PERSISTENCE_DB = os.getenv("PERSISTENCE_DB_PATH", "/app/data/persistence/sessions.db")
+NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
+REQUEST_TIMEOUT = int(os.getenv("LITELLM_REQUEST_TIMEOUT", "300"))
+CONNECT_TIMEOUT = int(os.getenv("LITELLM_CONNECT_TIMEOUT", "30"))
+
+
+# ============================================================================
+# PERSISTENCIA DE SESIÓN
+# ============================================================================
+# DatabaseSessionService guarda el historial de conversación en SQLite.
+# El historial sobrevive a:
+#   - reinicios del contenedor Docker
+#   - timeouts de Ollama / cold starts
+#   - pérdidas de conexión temporales
+#
+# ADK crea la tabla automáticamente si no existe.
+# La ruta está en el volumen nombrado del compose → persiste entre builds.
+
+os.makedirs(os.path.dirname(PERSISTENCE_DB), exist_ok=True)
+
+session_service = DatabaseSessionService(db_url=f"sqlite+aiosqlite:///{PERSISTENCE_DB}")
+
+# ============================================================================
+# MODELO
+# ============================================================================
+# extra_body propaga los parámetros directamente al payload de Ollama.
+# Esto garantiza que num_ctx se aplique aunque la var de entorno no llegue
+# al servidor Ollama correctamente (comportamiento inconsistente según versión).
+#
+# think=False suprime el bloque <think>...</think> que qwen3.5 genera antes
+# de cada respuesta. El razonamiento interno sigue ocurriendo — solo se
+# omite el bloque visible. Sin esto, el thinking puede:
+#   - aparecer en el chat como texto crudo con etiquetas XML
+#   - consumir tokens de contexto innecesariamente
+#   - confundir a ADK al parsear la respuesta
+
+model = LiteLlm(
+    model=OLLAMA_MODEL,
+    api_base=OLLAMA_URL,
+    timeout=REQUEST_TIMEOUT,
+    extra_body={
+        "options": {
+            "num_ctx": NUM_CTX,  # ventana de contexto explícita
+        },
+        "think": False,  # suprimir thinking tokens visibles de qwen3.5
+    },
 )
 
 # ============================================================================
-# PERSISTENCIA - Inicialización Global
-# ============================================================================
-# Usar ruta persistente que sobrevive reconstrucciones del contenedor
-DB_PATH = os.getenv("PERSISTENCE_DB_PATH", "/app/data/persistence/sessions.db")
-
-# Crear directorio si no existe
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-
-persistence = AgentPersistence(DB_PATH)
-current_session_id: Optional[str] = None
-
-
-# ============================================================================
-# FUNCIONES DE GESTIÓN DE SESIONES
-# ============================================================================
-
-
-def create_agent_with_persistence(
-    session_id: Optional[str] = None,
-) -> tuple[Agent, str]:
-    """Crea un agente con persistencia habilitada.
-
-    Si se proporciona session_id, reanuda esa sesión.
-    Si no, crea una nueva sesión.
-
-    Args:
-        session_id: ID de sesión existente o None para nueva sesión
-
-    Returns:
-        Tupla (agent, session_id)
-    """
-    global current_session_id
-
-    # Reanudar o crear sesión
-    if session_id:
-        try:
-            persistence.resume_session(session_id)
-            current_session_id = session_id
-        except ValueError:
-            # Si la sesión no existe, crear una nueva
-            current_session_id = persistence.start_session(
-                session_name="Nueva sesión de chat"
-            )
-    else:
-        current_session_id = persistence.start_session(
-            session_name="Nueva sesión de chat"
-        )
-
-    # Obtener contexto persistente para incluir en el prompt
-    context = persistence.get_context_summary()
-
-    # Crear prompt mejorado con contexto
-    base_prompt = get_prompt()
-    enhanced_prompt = f"""{base_prompt}
-
---- CONTEXTO DE SESIÓN ---
-{context}
-
-IMPORTANTE: Usa este contexto para mantener continuidad en la conversación.
-Si hay información de sesiones anteriores (puertos, servicios, vulnerabilidades),
-refiérete a ella y construye sobre ese conocimiento.
-"""
-
-    # Crear agente con contexto persistente
-    agent = Agent(
-        name="chat_agent",
-        description="Cybersecurity mentor agent specialized in ethical hacking, penetration testing, and security analysis",
-        model=LiteLlm(
-            model="ollama_chat/qwen3:8b",
-            instruction=enhanced_prompt,
-            tools=[
-                # Reconocimiento y escaneo
-                nmap_scan,
-                ping_check,
-                gobuster_dir,
-                # Análisis y enumeración
-                whois_lookup,
-                dns_lookup,
-                # Utilidad y referencia
-                search_exploit,
-                get_cheatsheet,
-            ],
-            api_base=ollama_url,
-        ),
-    )
-
-    return agent, current_session_id
-
-
-def start_new_lab_session(
-    lab_name: str,
-    lab_environment: str = "Local",
-    lab_target: str = None,
-    lab_objective: str = None,
-) -> str:
-    """Inicia una nueva sesión específica para un lab de pentesting.
-
-    Args:
-        lab_name: Nombre del lab (ej: "HTB - Nibbles")
-        lab_environment: Plataforma (HTB, TryHackMe, CTF, etc.)
-        lab_target: IP o hostname del objetivo
-        lab_objective: Descripción del objetivo
-
-    Returns:
-        session_id de la nueva sesión
-    """
-    global current_session_id
-
-    current_session_id = persistence.start_session(
-        session_name=lab_name,
-        lab_environment=lab_environment,
-        lab_target=lab_target,
-        lab_objective=lab_objective,
-    )
-
-    return current_session_id
-
-
-def list_active_sessions():
-    """Lista todas las sesiones activas.
-
-    Returns:
-        Lista de diccionarios con información de sesiones
-    """
-    return persistence.get_active_sessions(limit=20)
-
-
-def get_session_history(max_messages: int = 20):
-    """Obtiene el historial de la sesión actual.
-
-    Args:
-        max_messages: Número máximo de mensajes a recuperar
-
-    Returns:
-        Lista de mensajes.
-    """
-    return persistence.get_history(max_messages=max_messages)
-
-
-def end_current_session(completed: bool = False):
-    """Finaliza la sesión actual.
-
-    Args:
-        completed: Si True, marca como completada; si False, como pausada.
-    """
-    global current_session_id
-    persistence.end_session(mark_as_completed=completed)
-    current_session_id = None
-
-
-# ============================================================================
-# HOOKS PARA GUARDAR MENSAJES
-# ============================================================================
-
-
-def save_user_message(message: str):
-    """Guarda un mensaje del usuario en la base de datos.
-
-    Args:
-        message: Contenido del mensaje.
-    """
-    if current_session_id:
-        persistence.add_user_message(message)
-
-
-def save_assistant_message(
-    response: str,
-    tool_calls: Optional[list] = None,
-    tool_results: Optional[list] = None,
-):
-    """Guarda un mensaje del asistente en la base de datos.
-
-    Args:
-        response: Contenido de la respuesta
-        tool_calls: Lista de herramientas llamadas
-        tool_results: Resultados de las herramientas.
-    """
-    if current_session_id:
-        persistence.add_assistant_message(
-            content=response, tool_calls=tool_calls, tool_results=tool_results
-        )
-
-
-# ============================================================================
-# HOOKS PARA ACTUALIZAR CONTEXTO DEL LAB
-# ============================================================================
-
-
-def update_lab_phase(phase: str):
-    """Actualiza la fase actual del pentesting.
-
-    Args:
-        phase: reconnaissance | enumeration | exploitation | post-exploitation.
-    """
-    if current_session_id:
-        persistence.update_phase(phase)
-
-
-def save_nmap_results(results: Dict[str, Any]):
-    """Procesa y guarda resultados de nmap en el contexto.
-
-    Args:
-        results: Diccionario con resultados de nmap.
-    """
-    if not current_session_id or results.get("status") != "success":
-        return
-
-    # Extraer y guardar puertos abiertos
-    if "open_ports" in results:
-        persistence.add_ports(results["open_ports"])
-
-    # Extraer y guardar servicios
-    if "services" in results:
-        for service in results["services"]:
-            persistence.add_service(
-                port=service.get("port"),
-                service=service.get("name", "unknown"),
-                version=service.get("version", "unknown"),
-            )
-
-
-def save_vulnerability(name: str, description: str, severity: str = "medium"):
-    """Guarda una vulnerabilidad encontrada.
-
-    Args:
-        name: Nombre de la vulnerabilidad
-        description: Descripción detallada
-        severity: info | low | medium | high | critical.
-    """
-    if current_session_id:
-        persistence.add_vulnerability(name, description, severity)
-
-
-def save_credentials(username: str, password: str, service: str = None):
-    """Guarda credenciales obtenidas durante el pentesting.
-
-    Args:
-        username: Usuario
-        password: Contraseña
-        service: Servicio asociado.
-    """
-    if current_session_id:
-        persistence.add_credential(username, password, service)
-
-
-def save_flag(flag_type: str, flag_value: str):
-    """Guarda una flag capturada.
-
-    Args:
-        flag_type: Tipo de flag (user_flag, root_flag, etc.)
-        flag_value: Valor de la flag.
-    """
-    if current_session_id:
-        persistence.set_flag(flag_type, flag_value)
-
-
-def add_lab_notes(notes: str):
-    """Añade notas al contexto del lab actual.
-
-    Args:
-        notes: Texto de las notas.
-    """
-    if current_session_id:
-        persistence.add_notes(notes)
-
-
-# ============================================================================
-# UTILIDADES DE CONSULTA
-# ============================================================================
-
-
-def search_history(search_term: str, limit: int = 10):
-    """Busca en el historial de todas las conversaciones.
-
-    Args:
-        search_term: Término a buscar
-        limit: Número máximo de resultados
-
-    Returns:
-        Lista de mensajes que coinciden con la búsqueda.
-    """
-    return persistence.search(search_term, limit=limit)
-
-
-def get_current_context():
-    """Obtiene el contexto completo de la sesión actual.
-
-    Returns:
-        Diccionario con sesión y contexto del lab.
-    """
-    return persistence.get_full_context()
-
-
-def export_session_report():
-    """Exporta un reporte completo de la sesión actual.
-
-    Returns:
-        Diccionario con toda la información de la sesión.
-    """
-    return persistence.export_report()
-
-
-def get_session_stats():
-    """Obtiene estadísticas de la sesión actual.
-
-    Returns:
-        Diccionario con estadísticas.
-    """
-    return persistence.get_statistics()
-
-
-# ============================================================================
-# AGENTE POR DEFECTO (Sin persistencia para compatibilidad)
+# AGENTE PRINCIPAL
 # ============================================================================
 
 root_agent = Agent(
-    name="Cybersegurity_Tutor",
-    description="Cybersecurity mentor agent specialized in ethical hacking, penetration testing, and security analysis",
-    model=LiteLlm(
-        model="ollama_chat/qwen3:8b",
-        instruction=get_prompt(),
-        tools=[
-            # Reconocimiento y escaneo
-            nmap_scan,
-            ping_check,
-            gobuster_dir,
-            # Análisis y enumeración
-            whois_lookup,
-            dns_lookup,
-            # Utilidad y referencia
-            search_exploit,
-            get_cheatsheet,
-        ],
-        api_base=ollama_url,
+    name="Cybersecurity_Tutor",
+    description=(
+        "Mentor experto en hacking ético y pentesting profesional. "
+        "Guía el flujo completo de auditorías: reconocimiento, enumeración, "
+        "explotación, post-explotación Linux/Windows, Active Directory, "
+        "pivoting, OSINT y reporting. "
+        "siguiendo estándares PTES, OWASP WSTG y metodología profesional. "
+        "Cubre: reconocimiento, enumeración web/SMB/AD, explotación, "
+        "post-explotación Linux/Windows, Active Directory attacks completo, "
+        "pivoting, OSINT y documentación/reporting. "
+        "Analiza output de herramientas (nmap, gobuster, enum4linux, nikto, "
+        "wpscan, linpeas), genera comandos explicados y construye el razonamiento del estudiante paso a paso."
     ),
+    model=model,
+    instruction=get_prompt(),
+    tools=[
+        # Análisis de output — el estudiante pega, el tutor interpreta
+        analyze_nmap_output,
+        analyze_gobuster_output,
+        analyze_service_version,
+        analyze_enum4linux_output,
+        analyze_nikto_output,
+        analyze_wpscan_output,
+        analyze_linpeas_output,
+        analyze_hash,
+        # Flujo profesional por fases
+        generate_pentest_commands,  # recon, web, smb, privesc, passwords, pivoting
+        generate_pentest_commands_extended,  # osint, active_directory, reporting, api_testing
+        # Referencia técnica
+        get_cheatsheet,  # nmap, gobuster, ffuf, metasploit, smb, etc.
+        get_cheatsheet_extended,  # impacket, mimikatz, msfvenom, docker, owasp, etc.
+        explain_concept,  # SUID, SQLi, reverse shell, SSRF, IDOR, JWT, etc.
+        explain_concept_extended,  # XXE, CSRF, SSTI, LFI, deserialization, AD, etc.
+    ],
 )
-
-
-# ============================================================================
-# EXPORTACIONES
-# ============================================================================
-
-__all__ = [
-    # Agente
-    "root_agent",
-    # Gestión de sesiones
-    "create_agent_with_persistence",
-    "start_new_lab_session",
-    "list_active_sessions",
-    "get_session_history",
-    "end_current_session",
-    # Guardar mensajes
-    "save_user_message",
-    "save_assistant_message",
-    # Actualizar contexto
-    "update_lab_phase",
-    "save_nmap_results",
-    "save_vulnerability",
-    "save_credentials",
-    "save_flag",
-    "add_lab_notes",
-    # Consultas
-    "search_history",
-    "get_current_context",
-    "export_session_report",
-    "get_session_stats",
-    # Persistencia directa
-    "persistence",
-    "current_session_id",
-]

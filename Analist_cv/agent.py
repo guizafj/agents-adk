@@ -205,7 +205,7 @@ root_agent = Agent(
     name="Analist_CV",
     description="Expert in human resources, recruitment, and professional resume writing",
     model=LiteLlm(
-        model="ollama_chat/qwen3:8b",
+        model="ollama_chat/qwen3.5:latest",
         instruction=get_prompt(option="version_4"),
         api_base=ollama_url,
     ),

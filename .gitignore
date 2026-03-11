@@ -245,3 +245,7 @@ __marimo__/
 
 # guias y tutoriales
 tutor/
+
+.env
+*.db
+data/
