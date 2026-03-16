@@ -472,7 +472,7 @@ pygments==2.19.2
     # via rich
 pyjwt==2.11.0
     # via mcp
-pyopenssl==25.3.0
+pyopenssl==26.0.0
     # via google-auth
 pyparsing==3.3.2
     # via
