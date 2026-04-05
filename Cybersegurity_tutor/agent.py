@@ -54,6 +54,7 @@ from .tools import (
     # ── Conceptos — extendido ────────────────────────────────────────────────
     explain_concept_extended,
 )
+from .tools_tutorials import generate_tool_tutorial
 
 # ============================================================================
 # CONFIGURACIÓN
@@ -151,5 +152,7 @@ root_agent = Agent(
         get_cheatsheet_extended,  # impacket, mimikatz, msfvenom, docker, owasp, etc.
         explain_concept,  # SUID, SQLi, reverse shell, SSRF, IDOR, JWT, etc.
         explain_concept_extended,  # XXE, CSRF, SSTI, LFI, deserialization, AD, etc.
+        # ── Tutoriales estructurados ─────────────────────────────────────────
+        generate_tool_tutorial,  # tutorial completo por herramienta y nivel
     ],
 )

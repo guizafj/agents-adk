@@ -20,4 +20,5 @@ dependencies = [
     "ruff>=0.14.11",
     "bandit>=1.9.2",
     "pip>=25.3",
+    "pre-commit>=4.5.1",
 ]
