@@ -65,7 +65,7 @@ load_dotenv()
 OLLAMA_URL = os.getenv("OLLAMA_API_BASE") or os.getenv(
     "OLLAMA_BASE_URL", "http://localhost:11434"
 )
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "ollama_chat/qwen3.5:latest")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "ollama_chat/qwen3.6:35b")
 PERSISTENCE_DB = os.getenv("PERSISTENCE_DB_PATH", "/app/data/persistence/sessions.db")
 NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 REQUEST_TIMEOUT = int(os.getenv("LITELLM_REQUEST_TIMEOUT", "300"))

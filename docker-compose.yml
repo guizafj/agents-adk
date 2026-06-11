@@ -19,7 +19,7 @@
 #   docker compose logs -f adk
 #   Reiniciar:    docker compose restart adk   (conserva historial)
 #   Reset total:  docker compose down -v       (BORRA historial)
-# ============================================================================
+# ==========================================uv sync==================================
 
 services:
   adk:
@@ -35,7 +35,7 @@ services:
     environment:
       - OLLAMA_API_BASE=http://localhost:11434
       - OLLAMA_BASE_URL=http://localhost:11434
-      - OLLAMA_MODEL=ollama_chat/qwen3.5:latest
+      - OLLAMA_MODEL=ollama_chat/qwen3.6:35b
 
       # ── Contexto y streaming ───────────────────────────────────────────────
       # Ventana de contexto explícita — qwen3.5 por defecto usa 2048 si no se indica
