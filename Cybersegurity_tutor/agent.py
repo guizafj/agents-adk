@@ -57,6 +57,7 @@ from .tools import (
 )
 from .tools_tutorials import generate_tool_tutorial
 from .lab_memory import LAB_TOOLS, inject_lab_facts
+from .memory_search import search_lab_memory
 
 # ============================================================================
 # CONFIGURACIÓN
@@ -133,6 +134,8 @@ root_agent = Agent(
     tools=[
         # ── Memoria estructurada del lab (Fase 2) ─────────────────────────
         *LAB_TOOLS,
+        # ── Memoria recuperable a demanda (Fase 4) ─────────────────────────
+        search_lab_memory,
         # Análisis de output — el estudiante pega, el tutor interpreta
         analyze_nmap_output,
         analyze_gobuster_output,
@@ -159,20 +162,26 @@ root_agent = Agent(
 # APP + COMPACTACIÓN DE EVENTOS (Fase 3)
 # ============================================================================
 # El CLI/web crean el Runner a partir del App. Aquí se activa la compactación
-# por resumen: cuando el prompt supera COMPACTION_TOKEN_THRESHOLD tokens, ADK
-# resume los eventos antiguos con LlmEventSummarizer (usa el mismo modelo) y
-# conserva los últimor COMPACTION_RETENTION_SIZE eventos crudos.
+# por resumen: cuando el prompt supera el umbral de tokens, ADK resume los
+# eventos antiguos con LlmEventSummarizer (usa el mismo modelo) y conserva los
+# últimos COMPACTION_RETENTION_SIZE eventos crudos.
 #
-# Basado en el baseline (Fase 0): el primer turno usa ~5800 tokens a num_ctx
-# 8192, así que el umbral por defecto (7000) deja margen para ~3-4 turnos de
-# conversación real antes de la primera compactación.
+# Fase 5 (afinamiento): el umbral se deriva de num_ctx como un porcentaje
+# (COMPACTION_THRESHOLD_RATIO, default 0.85) en lugar de un valor fijo. Con
+# num_ctx 8192 → umbral ~6963 tokens; el baseline muestra que el primer turno
+# usa ~5800, dejando margen para ~3-4 turnos antes de compactar.
 #
-# Variables (opcionales, default razonable para qwen3.6/gemma a num_ctx 8192):
-#   COMPACTION_TOKEN_THRESHOLD=7000
-#   COMPACTION_RETENTION_SIZE=4
-# Ambos deben definirse juntos: si uno existe, el otro también debe existir.
+# Variables (opcionales):
+#   COMPACTION_TOKEN_THRESHOLD   umbral absoluto (anula el ratio)
+#   COMPACTION_THRESHOLD_RATIO   fracción de num_ctx (default 0.85)
+#   COMPACTION_RETENTION_SIZE    eventos crudos a conservar (default 4)
 
-COMPACTION_TOKEN_THRESHOLD = int(os.getenv("COMPACTION_TOKEN_THRESHOLD", "7000"))
+COMPACTION_TOKEN_THRESHOLD = os.getenv("COMPACTION_TOKEN_THRESHOLD")
+if COMPACTION_TOKEN_THRESHOLD:
+    COMPACTION_TOKEN_THRESHOLD = int(COMPACTION_TOKEN_THRESHOLD)
+else:
+    RATIO = float(os.getenv("COMPACTION_THRESHOLD_RATIO", "0.85"))
+    COMPACTION_TOKEN_THRESHOLD = int(NUM_CTX * RATIO)
 COMPACTION_RETENTION_SIZE = int(os.getenv("COMPACTION_RETENTION_SIZE", "4"))
 
 app = App(

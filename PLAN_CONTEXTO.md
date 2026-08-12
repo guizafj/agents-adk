@@ -46,11 +46,19 @@ Existen dos sistemas de persistencia coexistentes sin gestión de contexto activ
 - Env: `COMPACTION_TOKEN_THRESHOLD` / `COMPACTION_RETENTION_SIZE` (opcionales).
 - `EventsCompactionConfig` importado de `google.adk.apps._configs` (no exportado públicamente).
 
-### Fase 4: Memoria Recuperable (RAG Ligero)
-- Implementar búsqueda sobre la capa propia para detalles antiguos a demanda.
+### Fase 4: Memoria Recuperable (RAG Ligero) ✅ COMPLETADA
+- Nuevo módulo `Cybersegurity_tutor/memory_search.py` con la tool **`search_lab_memory(query, limit)`**:
+  - Busca en el historial de eventos ADK persistido (tabla `events` de `sessions.db`).
+  - Divide la query en términos (≥2 chars) y exige que el fragmento contenga todos (coincidencia multi-término).
+  - Devuelve fragmentos user/assistant por sesión con timestamp, sin cargar la sesión completa.
+  - Localiza la BD vía `PERSISTENCE_DB_PATH`, con fallback a `.adk/session.db`.
+- Registrada en `agent.py` (23 tools totales).
+- **Verificado end-to-end con gemma4:12b:** en una sesión nueva sin el dato en el prompt, el agente llamó a la tool y recuperó `/manager` del historial de Fase 3.
 
-### Fase 5: Afinamiento de Rendimiento y Contexto
-- Ajuste fino de `num_ctx`, parseo de outputs y balances entre fidelidad y velocidad.
+### Fase 5: Afinamiento de Rendimiento y Contexto ✅ COMPLETADA
+- Umbral de compactación **derivado de `num_ctx`**: `COMPACTION_TOKEN_THRESHOLD = num_ctx * COMPACTION_THRESHOLD_RATIO` (default 0.85 → 6963 tokens a 8192), anulable con variable absoluta.
+- Knobs documentados en `Cybersegurity_tutor/.env.example`: `OLLAMA_NUM_CTX`, `COMPACTION_THRESHOLD_RATIO`, `COMPACTION_RETENTION_SIZE`, `LITELLM_*_TIMEOUT`.
+- Sin cambios de parsing extra: `think=False` y `num_ctx` vía `extra_body` ya eran correctos desde el baseline.
 
 ---
 *Documento generado el [Fecha actual]*
