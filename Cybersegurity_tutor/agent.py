@@ -27,6 +27,8 @@ Fixes v3:
 import os
 from dotenv import load_dotenv
 from google.adk.agents import Agent
+from google.adk.apps import App
+from google.adk.apps._configs import EventsCompactionConfig
 from google.adk.models.lite_llm import LiteLlm
 
 from .prompt import get_prompt
@@ -54,6 +56,7 @@ from .tools import (
     explain_concept_extended,
 )
 from .tools_tutorials import generate_tool_tutorial
+from .lab_memory import LAB_TOOLS, inject_lab_facts
 
 # ============================================================================
 # CONFIGURACIÓN
@@ -126,7 +129,10 @@ root_agent = Agent(
     ),
     model=model,
     instruction=get_prompt(),
+    before_model_callback=inject_lab_facts,  # inyecta hechos del lab por turno
     tools=[
+        # ── Memoria estructurada del lab (Fase 2) ─────────────────────────
+        *LAB_TOOLS,
         # Análisis de output — el estudiante pega, el tutor interpreta
         analyze_nmap_output,
         analyze_gobuster_output,
@@ -147,4 +153,36 @@ root_agent = Agent(
         # ── Tutoriales estructurados ─────────────────────────────────────────
         generate_tool_tutorial,  # tutorial completo por herramienta y nivel
     ],
+)
+
+# ============================================================================
+# APP + COMPACTACIÓN DE EVENTOS (Fase 3)
+# ============================================================================
+# El CLI/web crean el Runner a partir del App. Aquí se activa la compactación
+# por resumen: cuando el prompt supera COMPACTION_TOKEN_THRESHOLD tokens, ADK
+# resume los eventos antiguos con LlmEventSummarizer (usa el mismo modelo) y
+# conserva los últimor COMPACTION_RETENTION_SIZE eventos crudos.
+#
+# Basado en el baseline (Fase 0): el primer turno usa ~5800 tokens a num_ctx
+# 8192, así que el umbral por defecto (7000) deja margen para ~3-4 turnos de
+# conversación real antes de la primera compactación.
+#
+# Variables (opcionales, default razonable para qwen3.6/gemma a num_ctx 8192):
+#   COMPACTION_TOKEN_THRESHOLD=7000
+#   COMPACTION_RETENTION_SIZE=4
+# Ambos deben definirse juntos: si uno existe, el otro también debe existir.
+
+COMPACTION_TOKEN_THRESHOLD = int(os.getenv("COMPACTION_TOKEN_THRESHOLD", "7000"))
+COMPACTION_RETENTION_SIZE = int(os.getenv("COMPACTION_RETENTION_SIZE", "4"))
+
+app = App(
+    name=root_agent.name,
+    root_agent=root_agent,
+    events_compaction_config=EventsCompactionConfig(
+        summarizer=None,  # ADK crea LlmEventSummarizer con el modelo del agente
+        compaction_interval=1,  # requerido por schema; el modo activo es token_threshold
+        overlap_size=1,
+        token_threshold=COMPACTION_TOKEN_THRESHOLD,
+        event_retention_size=COMPACTION_RETENTION_SIZE,
+    ),
 )

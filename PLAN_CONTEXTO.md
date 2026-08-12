@@ -28,12 +28,23 @@ Existen dos sistemas de persistencia coexistentes sin gestión de contexto activ
 - **Verificado:** `adk run --session_service_uri=...` persiste 1 sesión + 2 eventos en la BD global. El `.adk/session.db` previo (residuo sin la flag) queda obsoleto.
 - **Dependencia:** `sqlalchemy` ahora declarada en `pyproject.toml` (extra `google-adk[db]`).
 
-### Fase 2: Contexto Estructurado via Estado + lab_context
-- Decouplear "hechos del lab" del historial de chat usando un bloque compacto inyectado en cada turno.
+### Fase 2: Contexto Estructurado via Estado + lab_context ✅ COMPLETADA
+- Nuevo módulo `Cybersegurity_tutor/lab_memory.py`:
+  - **7 tools de registro de hechos** (`record_phase`, `record_port`, `record_finding`, `record_credential`, `record_flag`, `record_notes`, `record_target`) que escriben en el estado persistente de la sesión ADK (`session.state["lab_facts"]`).
+  - **`inject_lab_facts`**: `before_model_callback` que inyecta el bloque compacto vía `llm_request.append_instructions()` en cada turno, sin ensuciar el historial de chat.
+  - `build_lab_facts_block`: genera texto estructurado (objetivo, plataforma, fase, puertos, hallazgos, credenciales, flags, notas).
+- Registradas las tools + callback en `agent.py` (22 tools totales).
+- **Verificado end-to-end con gemma4:12b:** el modelo registró hechos (target, environment, phase, port), el estado persistió en SQLite entre 2 invocaciones, y el turno 2 respondió correctamente con los datos inyectados.
+- Test unitario del callback: inyección en `system_instruction` funcionando y sin hechos no inyecta nada.
 
-### Fase 3: Compactación por Resumen (Núcleo del Fix)
-- Implementar `EventsCompactionConfig` y `LlmEventSummarizer`.
-- Asegurar que el resumen se persista correctamente.
+### Fase 3: Compactación por Resumen (Núcleo del Fix) ✅ COMPLETADA
+- `agent.py` ahora exporta **`app`** (`google.adk.apps.App`) con `events_compaction_config` — el CLI/web lo detectan y lo prefieren sobre `root_agent`.
+- Config: `token_threshold=7000`, `event_retention_size=4`. El `LlmEventSummarizer` se auto-crea por ADK con el modelo del agente.
+- Basado en Fase 0 (primer turno ≈ 5800 tokens a num_ctx 8192): deja margen para ~3-4 turnos antes de la primera compactación.
+- `summarizer=None` → ADK instancia `LlmEventSummarizer(llm=agent.canonical_model)`.
+- **Verificado:** con 3 turnos largos se generaron 6 eventos de compactación con resúmenes fieles del contexto (target, /manager, credenciales por defecto, Struts).
+- Env: `COMPACTION_TOKEN_THRESHOLD` / `COMPACTION_RETENTION_SIZE` (opcionales).
+- `EventsCompactionConfig` importado de `google.adk.apps._configs` (no exportado públicamente).
 
 ### Fase 4: Memoria Recuperable (RAG Ligero)
 - Implementar búsqueda sobre la capa propia para detalles antiguos a demanda.
