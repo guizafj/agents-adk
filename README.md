@@ -60,7 +60,7 @@ curl -fsSL https://ollama.ai/install.sh | sh
 
 3. **Descargar modelo recomendado:**
 ```bash
-ollama pull qwen3:8b
+ollama pull gemma4:12b
 ```
 
 4. **Configurar entorno:**
@@ -142,7 +142,7 @@ graph TB
 
 | Modelo | Tamaño | VRAM Usado | Tiempo Respuesta | Throughput |
 |--------|--------|------------|------------------|------------|
-| qwen3:8b | 5.2GB | ~5.7GB | <3s | ~15 tokens/s |
+| gemma4:12b | 5.2GB | ~5.7GB | <3s | ~15 tokens/s |
 | llama3:8b | 4.7GB | ~5.2GB | <3s | ~18 tokens/s |
 | gemma3:4b | 3.3GB | ~3.8GB | <2s | ~25 tokens/s |
 
@@ -167,7 +167,7 @@ ADK_PORT="8000"                              # Puerto para ADK web
 # Instalar modelos adicionales
 ollama pull llama3:8b          # Modelo LLaMA 3
 ollama pull gemma3:4b          # Modelo Gemma más ligero
-ollama pull qwen3:8b           # Modelo Qwen (recomendado)
+ollama pull gemma4:12b         # Modelo Gemma (recomendado)
 ollama pull codellama:7b       # Especializado en código
 
 # Listar modelos disponibles
@@ -252,7 +252,7 @@ curl http://localhost:8000/health        # Health check ADK
 # Test de generación
 curl -X POST http://localhost:11434/api/generate \
   -H "Content-Type: application/json" \
-  -d '{"model":"qwen3:8b","prompt":"Hello world","stream":false}'
+  -d '{"model":"gemma4:12b","prompt":"Hello world","stream":false}'
 ```
 
 ---

@@ -54,7 +54,7 @@ RUN mkdir -p /app/data/persistence && chmod 755 /app/data/persistence
 # Variables de entorno por defecto
 # Sobreescribibles desde docker-compose.yml o docker run -e
 ENV OLLAMA_API_BASE="http://localhost:11434" \
-    OLLAMA_MODEL="ollama_chat/qwen3.6:35b" \
+    OLLAMA_MODEL="ollama_chat/gemma4:12b" \
     PERSISTENCE_DB_PATH="/app/data/persistence/sessions.db" \
     ADK_LOG_LEVEL="DEBUG" \
     # uv: usar el .venv del proyecto, no crear uno nuevo

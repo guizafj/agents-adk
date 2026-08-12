@@ -60,5 +60,23 @@ Existen dos sistemas de persistencia coexistentes sin gestión de contexto activ
 - Knobs documentados en `Cybersegurity_tutor/.env.example`: `OLLAMA_NUM_CTX`, `COMPACTION_THRESHOLD_RATIO`, `COMPACTION_RETENTION_SIZE`, `LITELLM_*_TIMEOUT`.
 - Sin cambios de parsing extra: `think=False` y `num_ctx` vía `extra_body` ya eran correctos desde el baseline.
 
+### Fase 6: Alineación de Variables y Modelo por Defecto ✅ COMPLETADA
+
+**Problema detectado:** el `.env` local de `Cybersegurity_tutor` definía `PERSISTENCE_DB="/app/data/persistence/sessions.db"`, pero todo el código (`agent.py`, `memory_search.py`, `Analist_cv/agent.py`) lee **`PERSISTENCE_DB_PATH`**. El nombre no llegaba al código → fuera de Docker la persistencia apuntaba a rutas inexistentes (`/app/...`). Además, el `.env` local declaraba `OLLAMA_MODEL="gemma4:latest"` (modelo inexistente en Ollama) y los contenedores usaban `ollama_chat/qwen3.6:35b`; el único modelo realmente descargado en el host era `gemma4:12b`.
+
+**Decisión:** estandarizar todo el proyecto sobre **`PERSISTENCE_DB_PATH`** (único nombre que el código lee) y fijar **`gemma4:12b`** como modelo por defecto en todas las capas (código, Docker, compose, plantillas).
+
+**Cambios:**
+- `Cybersegurity_tutor/.env` (gitignored): renombrada `PERSISTENCE_DB`→`PERSISTENCE_DB_PATH` con ruta local absoluta (`.../demo-ollama/data/persistence/sessions.db`); nombres de timeouts corregidos a `LITELLM_REQUEST_TIMEOUT`/`LITELLM_CONNECT_TIMEOUT` (antes `REQUEST_TIMEOUT`, que el código no lee); `OLLAMA_MODEL="ollama_chat/gemma4:12b"`; añadidos `OLLAMA_NUM_CTX`, `COMPACTION_THRESHOLD_RATIO`, `COMPACTION_RETENTION_SIZE`.
+- `Cybersegurity_tutor/agent.py:65` — default de `OLLAMA_MODEL` cambiado de `ollama_chat/qwen3.6:35b` a `ollama_chat/gemma4:12b`. Comentarios de `think=` neutralizados (ya no aluden a qwen). Docstring de cabecera actualizado (quitada la referencia al `DatabaseSessionService` eliminado en Fase 1).
+- `Dockerfile` / `docker-compose.yml` — `OLLAMA_MODEL=ollama_chat/gemma4:12b` como default en imagen y servicio.
+- `Cybersegurity_tutor/.env.example` — añadida `OLLAMA_MODEL` (con `ollama_chat/` y tag `12b`) y comentarios neutrales.
+- `AGENTS.md` / `README.md` — actualizados pull de modelo y referencias de persistencia (`PERSISTENCE_DB_PATH`).
+
+**Verificado:** `uv run adk run Cybersegurity_tutor` responde con `gemma4:12b`; `load_dotenv()` resuelve el `.env` local y `PERSISTENCE_DB` en `agent.py` ahora apunta a la BD local de desarrollo.
+
+**Pendiente (documentado, no bloqueante):** `Analist_cv/agent.py`, `pokedex_agent/agent.py` y `Cybersegurity_tutor/database/examples.py` siguen hardcodeando modelos qwen (`ollama_chat/qwen3:8b`, `qwen3.5:latest`) no descargados en el host; alinearlos a gemma queda fuera del alcance de esta tarea.
+
 ---
+
 *Documento generado el [Fecha actual]*

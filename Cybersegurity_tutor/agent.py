@@ -13,15 +13,10 @@ Cobertura:
     - Conceptos (18+): web vulns, AD attacks, técnicas avanzadas
     - Metodologías: PTES, OWASP WSTG, reporting profesional
 
-Fixes v3:
-    - DatabaseSessionService: historial de conversación persiste en SQLite
-        entre reinicios del agente. Resuelve la pérdida de contexto.
-    - LiteLlm timeouts explícitos: evita que silencios largos de qwen3.5
-        (thinking tokens) rompan la conexión y creen una sesión nueva.
-    - OLLAMA_NUM_CTX propagado como extra_body: garantiza que Ollama
-        use la ventana de contexto correcta sin depender solo de la var de entorno.
-    - thinking=False: suprime los tokens <think> de qwen3.5 en el chat.
-        El modelo sigue razonando internamente; solo se omite el bloque visible.
+# Contexto y persistencia activos:
+    #   - Memoria estructurada del lab en session.state (Fase 2).
+    #   - Compactación por resumen + memoria recuperable (Fases 3-4).
+    #   - Persistencia unificada vía --session_service_uri (Fase 1).
 """
 
 import os
@@ -68,7 +63,7 @@ load_dotenv()
 OLLAMA_URL = os.getenv("OLLAMA_API_BASE") or os.getenv(
     "OLLAMA_BASE_URL", "http://localhost:11434"
 )
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "ollama_chat/qwen3.6:35b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "ollama_chat/gemma4:12b")
 PERSISTENCE_DB = os.getenv("PERSISTENCE_DB_PATH", "/app/data/persistence/sessions.db")
 NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 REQUEST_TIMEOUT = int(os.getenv("LITELLM_REQUEST_TIMEOUT", "300"))
@@ -95,8 +90,8 @@ CONNECT_TIMEOUT = int(os.getenv("LITELLM_CONNECT_TIMEOUT", "30"))
 # Esto garantiza que num_ctx se aplique aunque la var de entorno no llegue
 # al servidor Ollama correctamente (comportamiento inconsistente según versión).
 #
-# think=False suprime el bloque de thinking que qwen3.5 genera antes de cada
-# respuesta. Sin esto consume tokens y rompe el parseo de ADK.
+# think=False suprime el bloque de thinking que algunos modelos generan antes
+# de cada respuesta. Sin esto consume tokens y rompe el parseo de ADK.
 
 model = LiteLlm(
     model=OLLAMA_MODEL,
@@ -106,7 +101,7 @@ model = LiteLlm(
         "options": {
             "num_ctx": NUM_CTX,  # ventana de contexto explícita
         },
-        "think": False,  # suprimir thinking tokens visibles de qwen3.5
+        "think": False,  # suprimir thinking tokens visibles en el chat
     },
 )
 
