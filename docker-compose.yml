@@ -46,7 +46,7 @@ services:
       - PERSISTENCE_DB_PATH=/app/data/persistence/sessions.db
 
       # ── Logging ────────────────────────────────────────────────────────────
-      - ADK_LOG_LEVEL=INFO
+      - ADK_LOG_LEVEL=DEBUG
 
       # ── Timeouts LiteLLM (segundos) ────────────────────────────────────────
       # request_timeout: máximo que espera una respuesta completa

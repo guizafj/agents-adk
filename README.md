@@ -156,7 +156,7 @@ graph TB
 # chat_agent/.env
 OLLAMA_API_BASE="http://localhost:11434"      # URL de Ollama
 OLLAMA_BASE_URL="http://localhost:11434"      # URL alternativa
-ADK_LOG_LEVEL="INFO"                          # Nivel de logs
+ADK_LOG_LEVEL="DEBUG"                          # Nivel de logs
 ADK_HOST="0.0.0.0"                           # Host para ADK web
 ADK_PORT="8000"                              # Puerto para ADK web
 ```

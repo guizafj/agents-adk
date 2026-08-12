@@ -28,7 +28,6 @@ import os
 from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.sessions import DatabaseSessionService
 
 from .prompt import get_prompt
 from .tools import (
@@ -75,18 +74,15 @@ CONNECT_TIMEOUT = int(os.getenv("LITELLM_CONNECT_TIMEOUT", "30"))
 # ============================================================================
 # PERSISTENCIA DE SESIÓN
 # ============================================================================
-# DatabaseSessionService guarda el historial de conversación en SQLite.
-# El historial sobrevive a:
-#   - reinicios del contenedor Docker
-#   - timeouts de Ollama / cold starts
-#   - pérdidas de conexión temporales
+# La persistencia NO se configura aquí. En ADK 2.x el servicio de sesión se
+# inyecta en el Runner (el CLI lo lee de --session_service_uri). El extra
+# `google-adk[db]` (sqlalchemy + aiosqlite) es requerido para sqlite.
 #
-# ADK crea la tabla automáticamente si no existe.
-# La ruta está en el volumen nombrado del compose → persiste entre builds.
-
-os.makedirs(os.path.dirname(PERSISTENCE_DB), exist_ok=True)
-
-session_service = DatabaseSessionService(db_url=f"sqlite+aiosqlite:///{PERSISTENCE_DB}")
+#   adk web  --session_service_uri="sqlite:///$PERSISTENCE_DB" .
+#   adk run  --session_service_uri="sqlite:///$PERSISTENCE_DB" Cybersegurity_tutor
+#
+# DatabaseSessionService se mantiene disponible para integraciones avanzadas,
+# pero no se declara aquí porque el CLI/web crean su propio Runner.
 
 # ============================================================================
 # MODELO
@@ -95,12 +91,8 @@ session_service = DatabaseSessionService(db_url=f"sqlite+aiosqlite:///{PERSISTEN
 # Esto garantiza que num_ctx se aplique aunque la var de entorno no llegue
 # al servidor Ollama correctamente (comportamiento inconsistente según versión).
 #
-# think=False suprime el bloque <think>...</think> que qwen3.5 genera antes
-# de cada respuesta. El razonamiento interno sigue ocurriendo — solo se
-# omite el bloque visible. Sin esto, el thinking puede:
-#   - aparecer en el chat como texto crudo con etiquetas XML
-#   - consumir tokens de contexto innecesariamente
-#   - confundir a ADK al parsear la respuesta
+# think=False suprime el bloque de thinking que qwen3.5 genera antes de cada
+# respuesta. Sin esto consume tokens y rompe el parseo de ADK.
 
 model = LiteLlm(
     model=OLLAMA_MODEL,

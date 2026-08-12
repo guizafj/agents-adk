@@ -56,7 +56,7 @@ RUN mkdir -p /app/data/persistence && chmod 755 /app/data/persistence
 ENV OLLAMA_API_BASE="http://localhost:11434" \
     OLLAMA_MODEL="ollama_chat/qwen3.6:35b" \
     PERSISTENCE_DB_PATH="/app/data/persistence/sessions.db" \
-    ADK_LOG_LEVEL="INFO" \
+    ADK_LOG_LEVEL="DEBUG" \
     # uv: usar el .venv del proyecto, no crear uno nuevo
     UV_PROJECT_ENVIRONMENT="/app/.venv"
 
@@ -66,4 +66,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
 
 # Sin '/' al final — es un argumento inválido para adk web
-CMD ["uv", "run", "adk", "web", "--host", "0.0.0.0", "--port", "8000"]
+# --session_service_uri: usa la BD SQLite del volumen nombrado (no .adk/ local)
+#   así las sesiones sobreviven a reinicios y rebuilds del contenedor.
+CMD ["uv", "run", "adk", "web", "--session_service_uri=sqlite:///app/data/persistence/sessions.db", "--host", "0.0.0.0", "--port", "8000"]

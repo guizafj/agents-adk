@@ -243,6 +243,9 @@ __marimo__/
 *.sqlite3
 *.log
 
+# Sesiones locales de ADK (el CLI crea .adk/session.db por agente)
+.adk/
+
 # guias y tutoriales
 tutor/
 
