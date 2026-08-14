@@ -68,4 +68,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
 # Sin '/' al final — es un argumento inválido para adk web
 # --session_service_uri: usa la BD SQLite del volumen nombrado (no .adk/ local)
 #   así las sesiones sobreviven a reinicios y rebuilds del contenedor.
-CMD ["uv", "run", "adk", "web", "--session_service_uri=sqlite:///app/data/persistence/sessions.db", "--host", "0.0.0.0", "--port", "8000"]
+# IMPORTANTE: sqlite://// (4 slashes) = ruta ABSOLUTA. Con 3 slashes la ruta
+#   es relativa al CWD (/app) → busca /app/app/data/... y falla con
+#   "unable to open database file" al crear la sesión.
+CMD ["uv", "run", "adk", "web", "--session_service_uri=sqlite:////app/data/persistence/sessions.db", "--host", "0.0.0.0", "--port", "8000"]

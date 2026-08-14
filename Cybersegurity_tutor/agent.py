@@ -110,7 +110,7 @@ model = LiteLlm(
 # ============================================================================
 
 root_agent = Agent(
-    name="Cybersecurity_Tutor",
+    name="Cybersegurity_tutor",
     description=(
         "Mentor experto en hacking ético y pentesting profesional. "
         "Guía el flujo completo de auditorías: reconocimiento, enumeración, "

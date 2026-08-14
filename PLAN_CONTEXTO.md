@@ -1,4 +1,4 @@
-# Plan de Contexto y Persistencia - Proyecto demo-ollam
+# Plan de Contexto y Persistencia - Proyecto demo-ollama
 
 ## Diagnóstico Actual
 Existen dos sistemas de persistencia coexistentes sin gestión de contexto activa en el CLI principal:
@@ -77,6 +77,43 @@ Existen dos sistemas de persistencia coexistentes sin gestión de contexto activ
 
 **Pendiente (documentado, no bloqueante):** `Analist_cv/agent.py`, `pokedex_agent/agent.py` y `Cybersegurity_tutor/database/examples.py` siguen hardcodeando modelos qwen (`ollama_chat/qwen3:8b`, `qwen3.5:latest`) no descargados en el host; alinearlos a gemma queda fuera del alcance de esta tarea.
 
+### Fase 7: Depuración de Sesión No Generada + Suite de Tests ✅ COMPLETADA
+
+**Estado inicial:** tras cerrar la Fase 6 (alineación de variables y modelo gemma4:12b), el contenedor Docker (`tutor:latest`) corría la web, pero **no se generaban sesiones**: `POST /apps/Cybersegurity_tutor/users/user/sessions` devolvía `500 Internal Server Error`. No había suite de tests configurada (AGENTS.md lo señalaba) y el proyecto no tenía `pytest`.
+
+**Proceso de depuración (método):** se trabajó en modo autónomo con `ADK_LOG_LEVEL=DEBUG` (ya activo en `docker-compose.yml` y `Dockerfile`). Se inspeccionaron los logs del contenedor (`docker compose logs adk`), las BD SQLite del host y del volumen, y el código de ADK instalado para confirmar cada causa antes de tocarla.
+
+**Problemas detectados (en orden de aparición en los logs):**
+
+1. **`sqlite:///` relativo en el CMD del Dockerfile** — `--session_service_uri=sqlite:///app/data/persistence/sessions.db` (3 slashes). SQLAlchemy interpreta 3 slashes como **ruta relativa al CWD** (`/app` en el contenedor) → intenta abrir `/app/app/data/persistence/sessions.db`, que no existe → `sqlite3.OperationalError: unable to open database file`.
+2. **Esquema híbrido roto en el volumen `tutor_persistence`** — tras arreglar el error anterior, la BD del volumen mezclaba tablas legacy de la antigua capa propia (`sessions` sin columna `app_name`, `messages`, `lab_context`, `user_progress`, ...) con tablas ADK (`app_states`, `user_states`, `events`) → ADK fallaba con `no such column: app_name`.
+3. **App name mismatch (pre-existente)** — `root_agent.name="Cybersecurity_Tutor"` (con "e") ≠ nombre del directorio `Cybersegurity_tutor` (sin "e"). ADK emitía el warning `App name mismatch detected` y las sesiones quedaban guardadas bajo dos `app_name` distintos, fragmentando el historial.
+
+**Decisiones tomadas y soluciones:**
+
+1. **Ruta absoluta de la URI de sesión** → `Dockerfile:71`: `sqlite:////app/data/persistence/sessions.db` (4 slashes = absoluta). Se añadió un comentario en el Dockerfile explicando el porqué (evita regresión). Justificación: la doc de ADK (Fase 1) ya usaba 4 slashes en los comandos locales; el CMD del Dockerfile era el único sitio sin corregir.
+2. **Regenerar el esquema de la BD** → `docker compose down -v` (borra el volumen `tutor_persistence`) + `docker compose up --build -d`. Decisión consultada y aprobada por el usuario: la BD rota era inservible y el historial legacy no era recuperable para ADK. Tras el reset, ADK crea su esquema limpio (`sessions.app_name`, `events`).
+3. **Alinear el nombre del agente al directorio** → `agent.py:113`: `name="Cybersegurity_tutor"`. Justificación: ADK usa el nombre del directorio como `app_name` implícito al cargar el agente desde `agents_dir`; si `root_agent.name` difiere, la web (que lista por directorio) no encuentra las sesiones. Este es el fix de coherencia que el test de Fase 4 ya anticipaba.
+4. **Crear suite de tests con pytest** → decisión confirmada por el usuario. Se añadió `pytest` como dev-dependency (`pyproject.toml` → `[dependency-groups].dev`), se configuró `[tool.pytest.ini_options]` (testpaths, pythonpath), y se construyeron 4 archivos de tests + 1 conftest.
+
+**Verificación end-to-end:**
+- `curl POST /apps/Cybersegurity_tutor/users/user/sessions` → `200` con `"appName":"Cybersegurity_tutor"`.
+- La BD del volumen contiene **solo** tablas ADK (`app_states`, `user_states`, `sessions`, `events`).
+- CLI local `uv run adk run Cybersegurity_tutor` responde con gemma4:12b sin warning de mismatch.
+- `uv run pytest` → **39 tests, todos en verde**.
+
+**Suite de tests (pytest, nueva):**
+- `tests/conftest.py` — fixtures `ToolContext` reales (sobre `InMemorySessionService`), helpers de sesión síncronos, constantes de app_name.
+- `tests/test_lab_memory.py` (14 tests) — tools de hechos del lab, `build_lab_facts_block`, `inject_lab_facts`.
+- `tests/test_memory_search.py` (9 tests) — `_text_parts`, `_find_db`, `search_lab_memory` sobre BD temporal.
+- `tests/test_agent_config.py` (11 tests) — defaults de env, compactación, coherencia de nombres; **el test de nombres detectó el bug de la Fase 7** (fallaba antes del fix).
+- `tests/test_flow_session.py` (5 tests) — Runner real con **StubModel** (sin Ollama): creación de sesión, app_name, persistencia de estado entre turnos.
+- Comando: `uv run pytest`. `pytest` como dev-dependency.
+
+**Notas de diseño de los tests:**
+- El `Runner` de ADK usa el modelo real del agente (LiteLlm → Ollama); para aislar los tests de flujo se sustituye el modelo por `StubModel` (subclase de `BaseLlm` que devuelve una respuesta fija) vía `monkeypatch`.
+- Las API de `InMemorySessionService` (`create_session`, `get_session`) son asíncronas; los tests síncronos las envuelven con `asyncio.run`.
+
 ---
 
-*Documento generado el [Fecha actual]*
+*Documento generado el 14 de agosto de 2026*
