@@ -249,6 +249,10 @@ __marimo__/
 # guias y tutoriales
 tutor/
 
+# Documentos internos de proceso (memoria de decisiones y guía del repo)
+AGENTS.md
+PLAN_CONTEXTO.md
+
 .env
 *.db
 data/
