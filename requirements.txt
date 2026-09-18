@@ -199,7 +199,7 @@ packaging==26.0
     #   pip-audit
     #   pip-requirements-parser
     #   pytest
-pip==26.1.2
+pip==26.2
     # via
     #   app
     #   pip-api
