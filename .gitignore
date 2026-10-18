@@ -250,8 +250,8 @@ __marimo__/
 tutor/
 
 # Documentos internos de proceso (memoria de decisiones y guía del repo)
-AGENTS.md
-PLAN_CONTEXTO.md
+*.md
+!README.md
 
 .env
 *.db
